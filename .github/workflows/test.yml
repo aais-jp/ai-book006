@@ -1,0 +1,20 @@
+name: test
+
+# 手動実行だけ。自動では走らないので、稼働時間を勝手に消費しない。
+# Actions タブ → test → Run workflow で実行する。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: テストを走らせる
+        # 外部ライブラリもAPIキーも要らない。標準の unittest だけで動く。
+        run: python -m unittest discover -s tests -v

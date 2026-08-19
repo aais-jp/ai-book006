@@ -1,0 +1,27 @@
+name: 業務依頼
+description: 社員にやってほしいことを書きます
+title: "[依頼] "
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: やってほしいこと
+      placeholder: 例)来週の新サービス告知文を、SNS用に3案つくってください
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 前提・材料
+      placeholder: 例)サービス名、価格、想定読者、参考にしたい既存の文章など
+    validations:
+      required: false
+
+  - type: input
+    id: deadline
+    attributes:
+      label: いつまでに
+      placeholder: 例)今日中 / 今週中 / 急ぎません
+    validations:
+      required: false

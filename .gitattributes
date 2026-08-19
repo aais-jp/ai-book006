@@ -1,0 +1,7 @@
+# 改行コードは常に LF にそろえる。
+#
+# GitHub Actions は Linux 上で動く。ワークフローの run: に書いたコマンドが
+# CRLF で保存されていると、シェルが行末の \r まで命令の一部として読んでしまい、
+# "$'\r': command not found" で落ちる。
+# Windows で編集しても、リポジトリには LF で入るようにしておく。
+* text=auto eol=lf

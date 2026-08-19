@@ -1,0 +1,66 @@
+name: company
+
+# 出社のきっかけは2つだけ。
+#   - Issue が立つ(新しい依頼が来た)
+#   - Issue にコメントが付く(経営者が返事をした)
+# ラベルの付け外しでは起動しない。理由は本文 第4章 を参照。
+on:
+  issues:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 手動で処理する Issue 番号
+        required: true
+
+permissions:
+  contents: write   # 名簿・記憶・成果物をコミットする
+  issues: write     # コメントとラベル
+  actions: write    # 上限に達したとき自分を止める
+
+# 同じ案件の処理が二重に走らないようにする
+concurrency:
+  group: company-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  work:
+    # 自分のコメントに自分で反応しないための最初の関門
+    if: github.event_name == 'workflow_dispatch' || github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+
+    # 停止装置その3: ハングしても5分で強制終了する
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 出社
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
+          MAX_HOPS: "3"
+          # 1つの依頼に同時に割り当てられる人数。"1" にすると常に1名(逐次)。
+          MAX_PARALLEL: "3"
+          MAX_BOT_COMMENTS: "20"
+          # "true" にすると、名簿で "search": true にした社員だけが
+          # Google検索で裏を取ってから仕事に入る。既定は無効(0円のまま)。
+          ENABLE_SEARCH: "false"
+        run: python scripts/main.py
+
+      - name: 記録を残す
+        if: always()
+        run: |
+          git config user.name  "ai-company[bot]"
+          git config user.email "ai-company@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "業務記録 #${{ github.event.issue.number || github.event.inputs.issue_number }}"
+            git pull --rebase --autostash
+            git push
+          fi
