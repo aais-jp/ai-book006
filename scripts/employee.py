@@ -34,7 +34,10 @@ WORK_RULES = """\
 - 自分の役割の外の作業は自分でやらず、handoff に適切な社員 id を入れる。
 - 引き継ぐ相手がいない、または自分で完了できるなら handoff.to は null。
 - 成果物は原則ファイルとして出す。reply には要約だけを書く。
-- 事実が確認できない箇所には「※要確認」と書き添える。
+- **依頼の中心に答えられないなら、成果物を作らない。** 空欄や「※要確認」で埋めた
+  文書を出すくらいなら、何も作らず reply で理由を伝えるほうがよい。
+- 「※要確認」は、**答えの裏取りが甘い箇所に添える印**であって、
+  答えそのものを省くための言葉ではない。依頼の中心には使わない。
 - 経営者に追加で聞きたいことがあるときは done を false にして reply で尋ねる。
 """
 
@@ -51,16 +54,18 @@ RESEARCH_RULES = """\
 
 
 def research(number, member):
-    """検索担当だけ、仕事に入る前に事実を集める。
+    """仕事に入る前に、事実を調べる。
 
     返り値は (調べた事実, 出典リスト)。
+    既定では全員が調べる。名簿で "search": false にした社員だけが調べない。
     検索が無効・非対応・枠切れのときは ("", []) を返し、素の知識のまま仕事に入る。
     調べものができないことを、仕事ができない理由にはしない。
     """
-    switch = os.environ.get("ENABLE_SEARCH", "").strip().lower()
-    if switch not in ("1", "true", "yes", "on"):
+    switch = os.environ.get("ENABLE_SEARCH", "true").strip().lower()
+    if switch in ("0", "false", "no", "off"):
         return "", []
-    if not member.get("search"):
+    # 名簿に "search" が無ければ調べる。調べさせたくない社員にだけ false を書く。
+    if member.get("search", True) is False:
         return "", []
 
     query = "\n\n".join([
@@ -99,6 +104,17 @@ def brief(number, member, facts="", task=""):
     if facts:
         # 調べた事実は案件より前に置く。後ろに置くと、目に入る前に書き始める。
         blocks.append("--- 調べた事実(Google検索で確認済み) ---\n" + facts)
+    else:
+        # **調べられないことを、社員に隠さない。**
+        # 黙って渡すと、社員は「知らない」と「調べられない」を区別できず、
+        # 中身の無い成果物を「※要確認」で埋めて出してしまう。
+        blocks.append(
+            "--- 調べもの ---\n"
+            "今回は外部を調べていません。学習済みの知識だけで答えてください。\n"
+            "最新の順位・件数・価格・日付など、調べないと分からないことを"
+            "求められている場合は、推測で書かないこと。\n"
+            "そのときは成果物を作らず、reply に「調べる機能が有効でないため"
+            "この依頼には答えられない」と書き、done を false にしてください。")
     blocks.append("--- 案件 ---\n" + receptionist.history(number, limit=12))
     return "\n\n".join(blocks)
 

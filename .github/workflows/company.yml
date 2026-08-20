@@ -46,9 +46,10 @@ jobs:
           # 1つの依頼に同時に割り当てられる人数。"1" にすると常に1名(逐次)。
           MAX_PARALLEL: "3"
           MAX_BOT_COMMENTS: "20"
-          # "true" にすると、名簿で "search": true にした社員だけが
-          # Google検索で裏を取ってから仕事に入る。既定は無効(0円のまま)。
-          ENABLE_SEARCH: "false"
+          # 社員が仕事の前に Google検索で裏を取る。既定は有効。
+          # 全社で止めたいときは "false"。
+          # 特定の社員だけ止めたいときは、名簿でその人を "search": false にする。
+          ENABLE_SEARCH: "true"
         run: python scripts/main.py
 
       - name: 記録を残す

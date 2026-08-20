@@ -1,4 +1,5 @@
 {
+  "_comment": "設立時に秘書アイが自動で埋める。 各社員の \"search\": false にすると、その社員だけ調べものをしなくなる。",
   "company": "",
   "founded": "",
   "members": []

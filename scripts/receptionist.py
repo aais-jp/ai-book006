@@ -111,6 +111,7 @@ def found(number, out):
             "role": str(raw.get("role") or "担当").strip(),
             "gender": str(raw.get("gender") or "未設定").strip(),
             "tone": str(raw.get("tone") or "丁寧な敬語").strip(),
+            "search": True,          # 調べさせたくない社員は false に書き換える
             "color": COLORS[i % len(COLORS)],
         }
         roster.append(entry)
