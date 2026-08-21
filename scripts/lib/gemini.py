@@ -109,7 +109,12 @@ def ask(prompt, system=None, temperature=0.4, max_tokens=4096, retries=3):
                 continue
             detail = err.read().decode("utf-8", "replace")[:300]
             raise RuntimeError("Gemini API -> %s %s" % (err.code, detail))
-        parts = (data.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+        cand = (data.get("candidates") or [{}])[0]
+        parts = cand.get("content", {}).get("parts", [])
+        if cand.get("finishReason") == "MAX_TOKENS":
+            # 途中で切れた返答は、たいてい JSON として読めない。
+            # 黙って捨てず、ログに残して原因を追えるようにする。
+            print("警告: 返答が長さの上限で切れました(maxOutputTokens=%d)。" % max_tokens)
         return "".join(p.get("text", "") for p in parts).strip()
     return ""
 
@@ -162,14 +167,17 @@ def search(query, system=None, temperature=0.2, max_tokens=4096, retries=2):
     return "", [], []
 
 
-def ask_json(prompt, system=None, temperature=0.3, retries=2):
+def ask_json(prompt, system=None, temperature=0.3, max_tokens=4096, retries=2):
     """返答から JSON オブジェクトを1つ取り出す。失敗したら言い直させる。"""
     for _ in range(retries):
-        text = ask(prompt, system=system, temperature=temperature)
+        text = ask(prompt, system=system, temperature=temperature, max_tokens=max_tokens)
         found = extract_json(text)
         if found is not None:
             return found
-        prompt += "\n\n※前回の返答は JSON として読めませんでした。説明を付けず、JSON オブジェクトだけを返してください。"
+        # 読めない原因の多くは「長すぎて途中で切れた」なので、短くするよう頼む。
+        prompt += ("\n\n※前回の返答は JSON として読めませんでした。"
+                   "説明を付けず、JSON オブジェクトだけを返してください。"
+                   "途中で切れた可能性があるので、成果物は短めにまとめてください。")
     raise RuntimeError("JSON を取り出せませんでした")
 
 

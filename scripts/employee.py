@@ -31,6 +31,8 @@ WORK_RULES = """\
 }
 
 守ること:
+- **reply は必ず書く。** 空にしない。何もできなかったときは、その理由を書く。
+- 直すよう頼まれたときは、渡された本文に手を入れる。ゼロから書き直さない。
 - 自分の役割の外の作業は自分でやらず、handoff に適切な社員 id を入れる。
 - 引き継ぐ相手がいない、または自分で完了できるなら handoff.to は null。
 - 成果物は原則ファイルとして出す。reply には要約だけを書く。
@@ -83,6 +85,31 @@ def research(number, member):
     return facts, sources
 
 
+def delivered_so_far(number, limit=8000):
+    """この案件でこれまでに納品されたファイルの中身を読む。
+
+    コメント欄に載るのは要約だけなので、これが無いと
+    **校閲・要約・改稿ができない**。前の担当が書いた本文そのものを渡す。
+    """
+    folder = store.path("deliverables/%s" % number)
+    if not os.path.isdir(folder):
+        return ""
+
+    rows = []
+    for name in sorted(os.listdir(folder)):
+        body = store.read("deliverables/%s/%s" % (number, name)).strip()
+        if body:
+            rows.append("### %s\n\n%s" % (name, body))
+    if not rows:
+        return ""
+
+    text = ("\n\n").join(rows)
+    if len(text) > limit:
+        # 長すぎると資料全体が膨らみ、モデルが処理しきれなくなる。
+        text = text[:limit] + ("\n\n(長いため以降は省略。全文はリポジトリにあります)")
+    return text
+
+
 def brief(number, member, facts="", task=""):
     """社員1名に渡す資料一式を組み立てる。"""
     others = [m for m in store.members() if m["id"] != member["id"]]
@@ -116,6 +143,13 @@ def brief(number, member, facts="", task=""):
             "そのときは成果物を作らず、reply に「調べる機能が有効でないため"
             "この依頼には答えられない」と書き、done を false にしてください。")
     blocks.append("--- 案件 ---\n" + receptionist.history(number, limit=12))
+
+    # 前の担当が書いた本文。コメント欄には要約しか載らないので、ここで渡す。
+    done = delivered_so_far(number)
+    if done:
+        blocks.append("--- この案件でこれまでに納品されたもの ---\n" + done
+                      + "\n\n直すよう頼まれているなら、この本文を直す。"
+                      "新しく作り直すのではなく、**元の文章を活かして手を入れる**こと。")
     return "\n\n".join(blocks)
 
 
@@ -135,6 +169,9 @@ def think(number, member_id, task=""):
         system="あなたは「%s」。役割は %s。話し方は %s。"
                % (member["name"], member["role"], member["tone"]),
         temperature=0.5,
+        # 成果物の本文まで JSON に入れて返すので、既定より広く取る。
+        # ここが足りないと返答が途中で切れ、JSON として読めなくなる。
+        max_tokens=8192,
     )
     return member, out, sources
 
@@ -145,12 +182,23 @@ def deliver(number, member, out, sources, claimed=None):
     **この関数は必ず1件ずつ順に呼ぶ。** 同時に呼ぶと、コメントの順序が
     実行の速さで決まってしまい、読み手が経過を追えなくなる。
     """
-    body = ["**%s**(%s)\n" % (member["name"], member["role"]),
-            out.get("reply", "(報告がありませんでした)")]
-
     deliverable = out.get("deliverable") or {}
     filename = safe_name(deliverable.get("filename"))
     content = deliverable.get("content")
+
+    # reply が空でも、黙って「報告がありませんでした」で終わらせない。
+    # 何が起きたのかが分かる一文を必ず残す。
+    reply = str(out.get("reply") or "").strip()
+    if not reply:
+        if filename and content:
+            reply = "報告文をまとめられませんでした。成果物は納品してあります。"
+        else:
+            reply = ("うまく返答を組み立てられませんでした。"
+                     "お手数ですが、このIssueにもう一度コメントしてやり直してください。"
+                     "何度も続く場合は、依頼を短く分けると通りやすくなります。")
+
+    body = ["**%s**(%s)\n" % (member["name"], member["role"]), reply]
+
     if filename and content:
         if claimed is not None:
             # 同時に働くと、別々の担当が同じファイル名を選ぶことがある。
